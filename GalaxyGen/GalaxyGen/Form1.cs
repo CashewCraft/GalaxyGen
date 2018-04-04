@@ -48,6 +48,7 @@ namespace GalaxyGen
     public class Rendering
     {
         private static PaintEventArgs e;
+        public static Galaxy Base;
 
         private static int[] defaultcolour = { 255, 0, 0 };
 
@@ -60,6 +61,15 @@ namespace GalaxyGen
         {
             SolidBrush b = new SolidBrush(Color.Black);
             e.Graphics.FillRectangle(b, 0, 0, Consts.ResX, Consts.ResY);
+
+            for (double i = 0; i < Math.PI * 2; i += 0.001)
+            {
+                Debug.Gplot(new RealPoint(i, Consts.Radius, Base.Centre));
+            }
+            for (double i = 0; i < Math.PI * 2; i += 0.01)
+            {
+                Debug.Gplot(new RealPoint(i, Base.CentreGap * Consts.VDivision, Base.Centre));
+            }
         }
     }
 
@@ -192,7 +202,7 @@ namespace GalaxyGen
         /// <summary>
         /// boolean to enable/disable the debug functions
         /// </summary>
-        public const bool Active = true;
+        public static bool Active = true;
 
         //stack used to hold the timestamps of every check, so that multiple one can be queued at once
         private static Stack<int> timestamps = new Stack<int>();
@@ -221,20 +231,26 @@ namespace GalaxyGen
         /// <param name="rgb">the colour of the dot</param>
         public static void Gplot(RealPoint point, double size = 1, int[] rgb = null)
         {
-            rgb = rgb ?? defaultcolour; //if rgb is null, use the default colour
-            SolidBrush p = new System.Drawing.SolidBrush(Color.FromArgb(rgb[0], rgb[1], rgb[2])); //create a brush and convert the colour from int[]
+            if (Active)
+            {
+                rgb = rgb ?? defaultcolour; //if rgb is null, use the default colour
+                SolidBrush p = new System.Drawing.SolidBrush(Color.FromArgb(rgb[0], rgb[1], rgb[2])); //create a brush and convert the colour from int[]
 
-            //Draw a circle
-            e.Graphics.FillEllipse(p, new RectangleF(new PointF((float)(point.x - (size / 2)), (float)(point.y - (size / 2))), new SizeF((float)size, (float)size)));
+                //Draw a circle
+                e.Graphics.FillEllipse(p, new RectangleF(new PointF((float)(point.x - (size / 2)), (float)(point.y - (size / 2))), new SizeF((float)size, (float)size)));
+            }
         }
 
         public static void Gwrite(RealPoint point, string msg, int[] rgb = null, params object[] args)
         {
-            rgb = rgb ?? defaultcolour; //if rgb is null, use the default colour
-            SolidBrush p = new System.Drawing.SolidBrush(Color.FromArgb(rgb[0], rgb[1], rgb[2])); //create a brush and convert the colour from int[]
-            
-            //Draw a circle
-            e.Graphics.DrawString(string.Format(msg, args),new Font("Arial", 16),p,(float)point.x, (float)point.y);
+            if (Active)
+            {
+                rgb = rgb ?? defaultcolour; //if rgb is null, use the default colour
+                SolidBrush p = new System.Drawing.SolidBrush(Color.FromArgb(rgb[0], rgb[1], rgb[2])); //create a brush and convert the colour from int[]
+
+                //Draw a circle
+                e.Graphics.DrawString(string.Format(msg, args), new Font("Arial", 16), p, (float)point.x, (float)point.y);
+            }
         }
 
         /// <summary>
@@ -242,10 +258,7 @@ namespace GalaxyGen
         /// </summary>
         public static void check()
         {
-            if (Active)
-            {
-                timestamps.Push(Environment.TickCount);
-            }
+            timestamps.Push(Environment.TickCount);
         }
 
         /// <summary>
@@ -254,12 +267,9 @@ namespace GalaxyGen
         /// <returns>the amount of time elapsed since the timestamp at the top of the stack, in ticks</returns>
         public static string reset()
         {
-            if (Active)
-            {
-                int temp = timestamps.Pop();
-                timestamps.Push(Environment.TickCount);
-                return (Environment.TickCount - temp) + " ticks";
-            }
+            int temp = timestamps.Pop();
+            timestamps.Push(Environment.TickCount);
+            return (Environment.TickCount - temp) + " ticks";
         }
 
         /// <summary>
@@ -268,16 +278,20 @@ namespace GalaxyGen
         /// <returns>the amount of time elapsed since the timestamp at the top of the stack, in ticks</returns>
         public static string end()
         {
-            if (Active)
-            {
-                return (Environment.TickCount - timestamps.Pop()) + " ticks";
-            }
+            return (Environment.TickCount - timestamps.Pop()) + " ticks";
         }
 
         /// <summary>
         /// Print
         /// </summary>
-        public static void p(string Word, params object[] args) { Console.WriteLine(Word, args); }
+        public static void p(string Word, params object[] args)
+        {
+            if (Active)
+            {
+                try { Console.WriteLine(Word, args); }
+                catch { Console.WriteLine("FAILED TO PRINT"); }
+            }
+        }
     }
 
     public partial class Form1 : Form
@@ -367,11 +381,36 @@ namespace GalaxyGen
         }
 
         /// <summary>
+        /// Convert this point to a vector based around (0,0)
+        /// </summary>
+        /// <param name="Centre">The old centre</param>
+        public RealPoint ToVector(RealPoint Centre)
+        {
+            return new RealPoint(x - Centre.x, y - Centre.y);
+        }
+
+        /// <summary>
+        /// Treat these points as vectors and get the dot product
+        /// </summary>
+        public double Dot(RealPoint other)
+        {
+            return x * other.x + y * other.y;
+        }
+
+        /// <summary>
+        /// Checks if this vector is clockwise from another
+        /// </summary>
+        public bool IsClockwise(RealPoint from)
+        {
+            RealPoint Normal = new RealPoint(-from.y, from.x);
+            return Dot(Normal) > 0;
+        }
+
+        /// <summary>
         /// Get the distance between two points
         /// </summary>
         /// <param name="p1">the first point</param>
         /// <param name="p2">the second point</param>
-        /// <returns></returns>
         public static double Distance(RealPoint p1, RealPoint p2)
         {
             return Math.Sqrt((Math.Abs(p1.x - p2.x) * Math.Abs(p1.x - p2.x)) + Math.Abs(p1.y - p2.y) * Math.Abs(p1.y - p2.y));
@@ -419,6 +458,34 @@ namespace GalaxyGen
         }
     }
 
+    public class Rect
+    {
+        RealPoint p1;
+        RealPoint p2;
+
+        public Rect(RealPoint P1, RealPoint P2)
+        {
+            p1 = P1;
+            p2 = P2;
+        }
+
+        public bool Within(RealPoint P3)
+        {
+            if
+            (
+                P3.x >= Math.Min(p1.x, p2.x) &&
+                P3.x <= Math.Max(p1.x, p2.x) &&
+
+                P3.y >= Math.Min(p1.y, p2.y) &&
+                P3.y <= Math.Max(p1.y, p2.y)
+            )
+            {
+                return true;
+            }
+            return false;
+        }
+    }
+
     public class Line
     {
         // Y = Xmod(x) + Ymod
@@ -449,22 +516,26 @@ namespace GalaxyGen
 
         public RealPoint Intersect(Line other)
         {
-            if (other.Xmod == Xmod && other.Ymod == Ymod)
+            if (other.Xmod == Xmod)
             {
-                return null;
+                throw new System.ArgumentException("Lines cannot be parallel");
             }
 
             double x = (other.Ymod - Ymod) / (Xmod - other.Xmod);
 
-            return new RealPoint(x, Xmod * (x) + Ymod);
+            return new RealPoint(x, f(x));
         }
 
         public Line ShiftPerp(double shift)
         {
-            Debug.p("creating shift with distance of {0} from target of {1}", RealPoint.Distance(new RealPoint(Math.Atan(Xmod) + (0.5 * Math.PI), shift, p1), p1), shift);
             return new Line(new RealPoint(Math.Atan(Xmod)+(0.5*Math.PI), shift,p1), Xmod);
         }
-        
+
+        public Line RotPerp(RealPoint intercept)
+        {
+            return new Line(intercept, new RealPoint(Math.Atan(Xmod) + (0.5 * Math.PI), 1, intercept));
+        }
+
         public double f(double x)
         {
             return (Xmod * x) + Ymod;
@@ -475,6 +546,69 @@ namespace GalaxyGen
             for (int i = start; i < end; i++)
             {
                 Debug.Gplot(new RealPoint(i,f(i)), 1, Colour);
+            }
+        }
+
+        public override string ToString()
+        {
+            return Xmod+"x "+((Math.Sign(Ymod)>=0)?"+":"")+Ymod;
+        }
+    }
+
+    class Segment : Line
+    {
+        public Segment(RealPoint s, RealPoint e) : base(s, e) { }
+
+        new public Segment ShiftPerp(double shift)
+        {
+            return new Segment(new RealPoint(Math.Atan(Xmod) + (0.5 * Math.PI), shift, p1), new RealPoint(Math.Atan(Xmod) + (0.5 * Math.PI), shift, p2));
+        }
+
+        new public void Draw(int[] Colour = null)
+        {
+            for (int i = (int)Math.Floor(Math.Min(p1.x, p2.x)); i < Math.Ceiling(Math.Max(p1.x, p2.x)); i++)
+            {
+                Debug.Gplot(new RealPoint(i, f(i)), 1, Colour);
+            }
+        }
+
+        new public RealPoint Intersect(Line other)
+        {
+            Debug.p("Using the fancy new intersect!");
+            if (other.Xmod == Xmod)
+            {
+                throw new System.ArgumentException("Lines cannot be parallel");
+            }
+
+            double x = (other.Ymod - Ymod) / (Xmod - other.Xmod);
+
+            if (new Rect(p1,p2).Within(new RealPoint(x, f(x))))
+            {
+                return new RealPoint(x, f(x));
+            }
+            else
+            {
+                throw new System.ArgumentException("Lines do not intersect");
+            }
+        }
+
+        public RealPoint Intersect(Segment other)
+        {
+            Debug.p("Using the fancy new intersect!");
+            if (other.Xmod == Xmod)
+            {
+                throw new System.ArgumentException("Lines cannot be parallel");
+            }
+
+            double x = (other.Ymod - Ymod) / (Xmod - other.Xmod);
+
+            if (new Rect(p1, p2).Within(new RealPoint(x, f(x))) && new Rect(other.p1, other.p2).Within(new RealPoint(x, f(x))))
+            {
+                return new RealPoint(x, f(x));
+            }
+            else
+            {
+                throw new System.ArgumentException("Lines do not intersect");
             }
         }
     }
@@ -521,10 +655,32 @@ namespace GalaxyGen
         {
             for (double i = 0; i < 1; i += 0.01)
             {
-                Debug.Gplot(new RealPoint((StartTheta * Consts.HsDivision) + (((EndTheta * Consts.HsDivision) - (StartTheta * Consts.HsDivision)) * i), (TopR * Consts.VsDivision), Centre), 1, new int[3] { 0, 0, 255 });
-                Debug.Gplot(new RealPoint((StartTheta * Consts.HsDivision) + (((EndTheta * Consts.HsDivision) - (StartTheta * Consts.HsDivision)) * i), (BottomR * Consts.VsDivision), Centre), 1, new int[3] { 0, 0, 255 });
+                Debug.Gplot(new RealPoint((StartTheta * Consts.HsDivision) + (((EndTheta * Consts.HsDivision) - (StartTheta * Consts.HsDivision)) * i), (TopR * Consts.VsDivision), Centre));
+                Debug.Gplot(new RealPoint((StartTheta * Consts.HsDivision) + (((EndTheta * Consts.HsDivision) - (StartTheta * Consts.HsDivision)) * i), (BottomR * Consts.VsDivision), Centre));
                 Debug.Gplot(new RealPoint((StartTheta * Consts.HsDivision), (BottomR * Consts.VsDivision) + (((TopR * Consts.VsDivision) - (BottomR * Consts.VsDivision)) * i), Centre));
                 Debug.Gplot(new RealPoint((EndTheta * Consts.HsDivision), (BottomR * Consts.VsDivision) + (((TopR * Consts.VsDivision) - (BottomR * Consts.VsDivision)) * i), Centre));
+            }
+        }
+
+        public void Shade(RealPoint Centre, int[] colour = null)
+        {
+            double Length = ((EndTheta * Consts.HsDivision) - (StartTheta * Consts.HsDivision)) * BottomR;
+            double dist = ((TopR * Consts.VsDivision) - (BottomR * Consts.VsDivision));
+
+            int counter = 0;
+            for (double i = 0; i < 1; i += 0.01)
+            {
+                counter++;
+                if (counter >= 5)
+                {
+                    counter = 0;
+                    RealPoint pos1 = new RealPoint(StartTheta * Consts.HsDivision, Math.Min(BottomR*Consts.VsDivision + (Length * i), BottomR * Consts.VsDivision + dist), Centre);
+                    RealPoint pos2 = new RealPoint(((StartTheta * (1 - i)) + (EndTheta * i)) * Consts.HsDivision, BottomR * Consts.VsDivision, Centre);
+                    for (double l = 0; l < 1; l += 0.01)
+                    {
+                        Debug.Gplot(pos1.Lerp(pos2, l), 1, colour);
+                    }
+                }
             }
         }
     }
@@ -567,20 +723,14 @@ namespace GalaxyGen
 
         private void Main()
         {
-            for (double i = 0; i < Math.PI * 2; i += 0.001)
-            {
-                Debug.Gplot(new RealPoint(i, Consts.Radius, Centre));
-            }
-            for (double i = 0; i < Math.PI * 2; i += 0.01)
-            {
-                Debug.Gplot(new RealPoint(i, CentreGap * Consts.VDivision, Centre));
-            }
+            Rendering.Base = this;
+            Rendering.Flip();
 
             PerlinNoise n = new PerlinNoise(new Random());
 
             GenHLs();
-            GenSectors(32,64,20,0.4,1,1,10);
-            //TODO: Add function for bites and plan system for planet distribution
+            GenSectors(32,64,30,0.4,1,1,10);
+            //TODO: plan system for planet distribution
         }
 
         private void GenHLs()
@@ -589,7 +739,7 @@ namespace GalaxyGen
             HLs = new Hyperlane[4];
             for (int i = 0; i < 4; i++)
             {
-                HLs[i] = new Hyperlane(3, 200, 0.002, this);
+                HLs[i] = new Hyperlane(3, 120, 0.002, this);
             }
         }
 
@@ -648,7 +798,7 @@ namespace GalaxyGen
         /// <param name="MaxHeight"></param>
         private void GenSectors(int MinLength, int MaxLength, int BiteProb, double MinBiteLength, double MaxBiteLength, int MinBiteHeight, int MaxBiteHeight)
         {
-            r = new Random(Seed);
+            r = new Random(Seed); //Debug.Active = false;
             Sectors = new Run[Consts.Resolution - CentreGap];
             for (int i = Consts.Resolution-CentreGap; i > 0; i--)
             {
@@ -660,6 +810,10 @@ namespace GalaxyGen
                         s.Break(MinBiteLength, MaxBiteLength, MinBiteHeight, MaxBiteHeight);
                     }
                 }
+            }
+            foreach (Hyperlane h in HLs)
+            {
+                h.Draw();
             }
         }
 
@@ -712,15 +866,15 @@ namespace GalaxyGen
 
             //Generate a new instance of the perlin noise class
             noise = new PerlinNoise(R);
+        }
 
-            Base.Draw();
-            Base.ShiftPerp(MaxSize).Draw();
-            Base.ShiftPerp(-MaxSize).Draw();
+        public void Draw(bool showbase = false)
+        {
+            if (showbase) { Base.Draw(); }
             for (double i = 0; i < 1; i += 0.005)
             {
-                Debug.Gplot(GetAt(Base.p1.Lerp(Base.p2,i)));
+                Debug.Gplot(GetAt(Base.p1.Lerp(Base.p2, i)), 1, new int[3] { 255, 255, 0 });
             }
-            Rendering.Flip();
         }
 
         /// <summary>
@@ -737,7 +891,7 @@ namespace GalaxyGen
             return new RealPoint(
                 Math.Atan2(Base.p2.y - Base.p1.y, Base.p2.x - Base.p1.x) //convert the line's gradient to radians
                 + (0.5d * Math.PI), //turn it 90 degrees so it's at a right angle
-                n * MaxSize, //project out by the noise
+                n * (MaxSize*1.5), //project out by the noise
                 i //from the intercept point
             );
         }
@@ -840,36 +994,44 @@ namespace GalaxyGen
         {
             foreach (Hyperlane i in HLlist)
             {
-                if (CheckHLCol(i)) { return true; }
+                if (CheckHLCol(i))
+                {
+                    InHL = true;
+                    return true;
+                }
             }
             return false;
         }
 
         bool CheckHLCol(Hyperlane ColWith)
         {
-            Draw(Parent.Parent.Centre);
+            //Rendering.Flip();
             
-            Line BoundLine1 = new Line(new RealPoint(StartTheta, TopR, Parent.Parent.Centre), new RealPoint(StartTheta, BottomR, Parent.Parent.Centre));
-            Line BoundLine2 = new Line(new RealPoint(EndTheta, TopR, Parent.Parent.Centre), new RealPoint(EndTheta, BottomR, Parent.Parent.Centre));
-            
-            BoundLine1.Draw(new int[3] { 0, 0, 255 });
-            BoundLine2.Draw(new int[3] { 0, 0, 255 });
-            ColWith.Base.Draw(new int[3] { 0, 255, 0 });
-            ColWith.Base.ShiftPerp(ColWith.MaxSize).Draw(new int[3] { 255, 0, 0 });
-            ColWith.Base.ShiftPerp(-ColWith.MaxSize).Draw(new int[3] { 255, 0, 0 });
-            //Debug.p("Getting distance of {0} with a max size of {1}", RealPoint.Distance(new RealPoint(0,ColWith.Base.ShiftPerp(ColWith.MaxSize).f(0)), new RealPoint(0, ColWith.Base.f(0))), ColWith.MaxSize);
-            
-            double IntersectR1a = RealPoint.Distance(ColWith.Base.ShiftPerp(ColWith.MaxSize).Intersect(BoundLine1), Parent.Parent.Centre);
-            double IntersectR2a = RealPoint.Distance(ColWith.Base.ShiftPerp(-ColWith.MaxSize).Intersect(BoundLine1), Parent.Parent.Centre);
-            double IntersectR1b = RealPoint.Distance(ColWith.Base.ShiftPerp(ColWith.MaxSize).Intersect(BoundLine2), Parent.Parent.Centre);
-            double IntersectR2b = RealPoint.Distance(ColWith.Base.ShiftPerp(-ColWith.MaxSize).Intersect(BoundLine2), Parent.Parent.Centre);
-            if (!(IntersectR1a <= TopR && IntersectR1a >= BottomR)&& !(IntersectR2a <= TopR && IntersectR2a >= BottomR) && !(IntersectR1b <= TopR && IntersectR1b >= BottomR) && !(IntersectR2b <= TopR && IntersectR2b >= BottomR))
+            //Draw(Parent.Parent.Centre);
+
+            RealPoint p1 = ColWith.Base.p1;
+            RealPoint p2 = ColWith.Base.p2;
+
+            for (double i = 0; i < 1; i += 0.01)
             {
-                return false;
+                RealPoint Check = ColWith.GetAt(p1.Lerp(p2, i));
+                double CheckR = RealPoint.Distance(Check, Parent.Parent.Centre);
+                //Debug.Gplot(Check, 2, new int[3] { 255, 255, 0 });
+
+                RealPoint vCheck = Check.ToVector(Parent.Parent.Centre); //Shift check so it's based around (0,0)
+                RealPoint vCW = new RealPoint(EndTheta * Consts.HsDivision, TopR * Consts.VsDivision, Parent.Parent.Centre).ToVector(Parent.Parent.Centre);
+                RealPoint vACW = new RealPoint(StartTheta * Consts.HsDivision, TopR * Consts.VsDivision, Parent.Parent.Centre).ToVector(Parent.Parent.Centre);
+
+                //We need to check that vCheck is anti clockwise of vCW and clockwise of vACW
+                if (!vCheck.IsClockwise(vCW) && vCheck.IsClockwise(vACW) && CheckR >= BottomR && CheckR <= TopR)
+                {
+                    return true;
+                }
             }
-            return true;
+            return false;
         }
 
+        public bool InHL = false;
         Subsector[,] Subsectors;
     }
 
